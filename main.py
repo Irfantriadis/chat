@@ -1,87 +1,21 @@
 import streamlit as st
-import tensorflow as tf
 import json
-import random
-import pickle
-import numpy as np
-import nltk
-from nltk.stem import WordNetLemmatizer
+import joblib
 
-# Initialize the WordNetLemmatizer
-lemmatizer = WordNetLemmatizer()
+# Load the JSON data
+with open('model/tegaltourism.json') as file:
+    data = json.load(file)
 
-# Load intents, words, and classes from your pre-trained model
-intents = json.loads(open('model/tegaltourism.json').read())
-words = pickle.load(open('model/words.pkl', 'rb'))
-classes = pickle.load(open('model/classes.pkl', 'rb'))
+# Load the trained model
+model = joblib.load('model/chatbot_model.pkl')
 
-# Define the ERROR_THRESHOLD
-ERROR_THRESHOLD = 0.5
-
-# Function to clean and tokenize the user input
-def clean_up_sentence(sentence):
-    if sentence is None:
-        return []
-    sentence_words = nltk.word_tokenize(sentence)
-    sentence_words = [lemmatizer.lemmatize(word.lower()) for word in sentence_words]
-    return sentence_words
-
-# Function to create a Bag of Words (BoW)
-def bow(sentence, words, show_details=True):
-    sentence_words = clean_up_sentence(sentence)
-    bag = [0] * len(words)
-    for s in sentence_words:
-        for i, w in enumerate(words):
-            if w == s:
-                bag[i] = 1
-                if show_details:
-                    print("found in bag: %s" % w)
-    return np.array(bag)
-
-# Function to predict the intent class
-def predict_class(sentence, interpreter):
-    sentence_words = clean_up_sentence(sentence)
-    bag = [0] * len(words)
-    for s in sentence_words:
-        for i, w in enumerate(words):
-            if w == s:
-                bag[i] = 1
-    
-    input_data = np.array([bag], dtype=np.float32)
-    interpreter.set_tensor(input_details[0]['index'], input_data)
-    interpreter.invoke()
-    output_data = interpreter.get_tensor(output_details[0]['index'])
-    
-    results = [[i, r] for i, r in enumerate(output_data[0]) if r > ERROR_THRESHOLD]
-    results.sort(key=lambda x: x[1], reverse=True)
-    return_list = []
-    for r in results:
-        return_list.append({"intent": classes[r[0]], "probability": str(r[1])})
-    return return_list
-
-# Function to get response from the bot
-def getResponse(ints, intents_json):
-    tag = ints[0]['intent']
-    list_of_intents = intents_json['intents']
-    for i in list_of_intents:
-        if i['tag'] == tag:
-            result = random.choice(i['responses'])
-            break
-    return result
-
-# Function to generate chatbot response
-def chatbot_response(msg):
-    interpreter = tf.lite.Interpreter(model_path='model/chat_model.tflite')
-    interpreter.allocate_tensors()
-    global input_details, output_details
-    input_details = interpreter.get_input_details()
-    output_details = interpreter.get_output_details()
-    
-    ints = predict_class(msg, interpreter)
-    if ints and float(ints[0]['probability']) >= ERROR_THRESHOLD:
-        res = getResponse(ints, intents)
-        return res
-    return "I'm sorry, I didn't understand that."
+def chatbot_response(input_text):
+    predicted_tag = model.predict([input_text])[0]
+    for intent in data['intents']:
+        if intent['tag'] == predicted_tag:
+            response = intent['responses']
+            return response[0]
+    return "Maaf, saya tidak mengerti apa yang Anda maksud."
 
 # Streamlit App Interface
 st.title("Tegal Tourism Chatbot")
